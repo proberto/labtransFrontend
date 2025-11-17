@@ -1,10 +1,15 @@
 import { FormEvent, useEffect, useState } from 'react'
 import type { Reservation, ReservationPayload } from '../api/reservations'
+import { listLocations } from '../api/locations'
+import type { Location } from '../api/locations'
+import { listRooms } from '../api/rooms'
+import type { Room } from '../api/rooms'
 
 interface ReservationFormProps {
   initial?: Reservation | null
   onSubmit: (payload: ReservationPayload) => void
   submitting?: boolean
+  onReset?: () => void
 }
 
 const toLocalInput = (iso: string | undefined) => {
@@ -16,38 +21,124 @@ export const ReservationForm = ({
   initial,
   onSubmit,
   submitting = false,
+  onReset,
 }: ReservationFormProps) => {
   const [location, setLocation] = useState('')
   const [room, setRoom] = useState('')
+  const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null)
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
-  const [responsible, setResponsible] = useState('')
   const [coffee, setCoffee] = useState(false)
   const [coffeeQuantity, setCoffeeQuantity] = useState<string>('')
   const [coffeeDescription, setCoffeeDescription] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [locations, setLocations] = useState<Location[]>([])
+  const [rooms, setRooms] = useState<Room[]>([])
+  const [loadingData, setLoadingData] = useState(false)
+
+  // Carrega locais e salas do backend
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoadingData(true)
+      try {
+        const [locationsData, roomsData] = await Promise.all([
+          listLocations(),
+          listRooms(),
+        ])
+        setLocations(locationsData)
+        setRooms(roomsData)
+      } catch (err) {
+        console.error('Erro ao carregar locais e salas:', err)
+      } finally {
+        setLoadingData(false)
+      }
+    }
+    void fetchData()
+  }, [])
+
+  // Função auxiliar para obter salas de um local específico
+  const getRoomsByLocation = (locationName: string): Room[] => {
+    const location = locations.find((loc) => loc.name === locationName)
+    if (!location) return []
+    return rooms.filter((room) => room.location_id === location.id)
+  }
+
+  // Atualiza o room_id quando a sala é selecionada
+  useEffect(() => {
+    if (location && room) {
+      const availableRooms = getRoomsByLocation(location)
+      const selectedRoom = availableRooms.find((r) => r.name === room)
+      if (selectedRoom) {
+        setSelectedRoomId(selectedRoom.id)
+      } else {
+        setSelectedRoomId(null)
+      }
+    } else {
+      setSelectedRoomId(null)
+    }
+  }, [location, room, locations, rooms])
+
+  // Função para resetar o formulário
+  const resetForm = () => {
+    setLocation('')
+    setRoom('')
+    setSelectedRoomId(null)
+    setStart('')
+    setEnd('')
+    setCoffee(false)
+    setCoffeeQuantity('')
+    setCoffeeDescription('')
+    setError(null)
+  }
 
   useEffect(() => {
     if (initial) {
-      setLocation(initial.location)
-      setRoom(initial.room)
-      setStart(toLocalInput(initial.start_datetime))
-      setEnd(toLocalInput(initial.end_datetime))
-      setResponsible(initial.responsible)
-      setCoffee(initial.coffee)
+      // Extrai local e sala do objeto room ou dos campos legados
+      const locationName = initial.room?.location?.name || initial.local || ''
+      const roomName = initial.room?.name || initial.sala || ''
+      setLocation(locationName)
+      setRoom(roomName)
+      setStart(toLocalInput(initial.data_inicio))
+      setEnd(toLocalInput(initial.data_fim))
+      setCoffee(initial.cafe)
       setCoffeeQuantity(
-        initial.coffee_quantity != null ? String(initial.coffee_quantity) : '',
+        initial.quantidade_cafe != null ? String(initial.quantidade_cafe) : '',
       )
-      setCoffeeDescription(initial.coffee_description ?? '')
+      setCoffeeDescription(initial.descricao_cafe ?? '')
+    } else {
+      // Reset form when no initial data (quando initial é null/undefined)
+      // Limpa todos os campos do formulário
+      setLocation('')
+      setRoom('')
+      setSelectedRoomId(null)
+      setStart('')
+      setEnd('')
+      setCoffee(false)
+      setCoffeeQuantity('')
+      setCoffeeDescription('')
+      setError(null)
     }
   }, [initial])
+
+  // Verifica se o local atual está na lista do backend
+  const isLocationInList = locations.some((loc) => loc.name === location)
+  // Verifica se a sala atual está na lista de salas do local selecionado
+  const availableRooms = location ? getRoomsByLocation(location) : []
+  const isRoomInList = location
+    ? availableRooms.some((r) => r.name === room)
+    : false
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
     setError(null)
 
-    if (!location || !room || !start || !end || !responsible) {
+    if (!location || !room || !start || !end) {
       setError('Preencha todos os campos obrigatórios.')
+      return
+    }
+
+    if (!selectedRoomId) {
+      setError('Selecione uma sala válida.')
       return
     }
 
@@ -57,18 +148,16 @@ export const ReservationForm = ({
     }
 
     const payload: ReservationPayload = {
-      location,
-      room,
-      start_datetime: new Date(start).toISOString(),
-      end_datetime: new Date(end).toISOString(),
-      responsible,
-      coffee,
-      coffee_quantity: coffee
+      room_id: selectedRoomId,
+      data_inicio: new Date(start).toISOString(),
+      data_fim: new Date(end).toISOString(),
+      cafe: coffee,
+      quantidade_cafe: coffee
         ? coffeeQuantity
           ? Number(coffeeQuantity)
           : null
         : null,
-      coffee_description: coffee ? coffeeDescription || null : null,
+      descricao_cafe: coffee ? coffeeDescription || null : null,
     }
 
     onSubmit(payload)
@@ -81,20 +170,65 @@ export const ReservationForm = ({
       <div className="field-row">
         <label className="field">
           <span>Local *</span>
-          <input
+          <select
             value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="Ex: Sede, Filial, Torre 1"
-          />
+            onChange={(e) => {
+              setLocation(e.target.value)
+              // Limpa a sala quando mudar o local, pois as salas são específicas de cada local
+              setRoom('')
+            }}
+            required
+          >
+            <option value="">
+              {loadingData ? 'Carregando...' : 'Selecione um local'}
+            </option>
+            {locations.map((loc) => (
+              <option key={loc.id} value={loc.name}>
+                {loc.name}
+              </option>
+            ))}
+            {/* Permite editar reservas com locais que não estão na lista pré-cadastrada */}
+            {initial && !isLocationInList && (
+              <option value={initial.local}>{initial.local} (atual)</option>
+            )}
+          </select>
         </label>
 
         <label className="field">
           <span>Sala *</span>
-          <input
-            value={room}
-            onChange={(e) => setRoom(e.target.value)}
-            placeholder="Ex: Sala 101, Reunião A"
-          />
+          {isLocationInList ? (
+            <select
+              value={room}
+              onChange={(e) => setRoom(e.target.value)}
+              disabled={!location}
+              required
+            >
+              <option value="">
+                {location
+                  ? loadingData
+                    ? 'Carregando...'
+                    : 'Selecione uma sala'
+                  : 'Primeiro selecione um local'}
+              </option>
+              {location &&
+                availableRooms.map((roomItem) => (
+                  <option key={roomItem.id} value={roomItem.name}>
+                    {roomItem.name}
+                  </option>
+                ))}
+              {/* Permite editar reservas com salas que não estão na lista pré-cadastrada */}
+              {initial && location === initial.local && !isRoomInList && (
+                <option value={initial.sala}>{initial.sala} (atual)</option>
+              )}
+            </select>
+          ) : (
+            <input
+              value={room}
+              onChange={(e) => setRoom(e.target.value)}
+              placeholder="Digite o nome da sala"
+              required
+            />
+          )}
         </label>
       </div>
 
@@ -117,15 +251,6 @@ export const ReservationForm = ({
           />
         </label>
       </div>
-
-      <label className="field">
-        <span>Responsável *</span>
-        <input
-          value={responsible}
-          onChange={(e) => setResponsible(e.target.value)}
-          placeholder="Nome completo"
-        />
-      </label>
 
       <label className="field-checkbox">
         <input

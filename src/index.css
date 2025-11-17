@@ -69,6 +69,34 @@ a {
   color: #6b7280;
 }
 
+.app-nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.nav-link {
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #6b7280;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.nav-link:hover {
+  color: #111827;
+  background-color: #f3f4f6;
+}
+
+.nav-link.active {
+  color: #2563eb;
+  background-color: #eff6ff;
+  border-color: #bfdbfe;
+}
+
 .user-info {
   display: flex;
   align-items: center;
@@ -182,6 +210,12 @@ a {
   border-color: #2563eb;
   box-shadow: 0 0 0 1px #2563eb33;
   background-color: #ffffff;
+}
+
+.field select:disabled {
+  background-color: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
 }
 
 .field-row {
@@ -352,7 +386,8 @@ a {
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  z-index: 50;
+  z-index: 9999;
+  backdrop-filter: blur(2px);
 }
 
 .modal {
@@ -391,6 +426,22 @@ a {
   margin-top: 0.75rem;
   font-size: 0.8rem;
   color: #6b7280;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.pagination-info {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
 }
 
 .status-bar span {

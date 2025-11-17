@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react'
+import { vi } from 'vitest'
 import { ReservationForm } from '../components/ReservationForm'
 
 describe('ReservationForm', () => {

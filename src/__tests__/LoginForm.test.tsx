@@ -10,11 +10,11 @@ describe('LoginForm', () => {
   it('valida fluxo básico de login', async () => {
     renderWithProviders(<LoginForm />)
 
-    const userInput = screen.getByLabelText(/usuário/i)
+    const emailInput = screen.getByLabelText(/email/i)
     const passwordInput = screen.getByLabelText(/senha/i)
     const button = screen.getByRole('button', { name: /entrar/i })
 
-    fireEvent.change(userInput, { target: { value: 'admin' } })
+    fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
     fireEvent.change(passwordInput, { target: { value: 'secret' } })
 
     fireEvent.click(button)
